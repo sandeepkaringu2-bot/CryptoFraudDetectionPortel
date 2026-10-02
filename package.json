@@ -1,5 +1,6 @@
 {
-  "name": "app-builder-workspace",
+  "name": "garuda-i4c-crypto-fraud-portal",
+  "description": "GARUDA — I4C/MHA crypto-fraud attribution portal (SIH26183). Trace victim wallets to VASPs and draft SAHYOG freeze notices.",
   "private": true,
   "sideEffects": false,
   "type": "module",

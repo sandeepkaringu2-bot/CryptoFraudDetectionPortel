@@ -1,0 +1,44 @@
+# Dependencies
+node_modules/
+.pnpm-store/
+
+# Build / deploy output
+.vercel/
+dist/
+.output/
+.nitro/
+.tanstack/
+*.tsbuildinfo
+
+# Env & secrets (platform injects DATABASE_URL / auth on deploy)
+.env
+.env.*
+!.env.example
+
+# Local DB / PGlite
+pglite-data/
+*.db
+*.db-journal
+
+# Logs & OS
+*.log
+npm-debug.log*
+.DS_Store
+Thumbs.db
+
+# Test / coverage
+coverage/
+.nyc_output/
+playwright-report/
+test-results/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# App Builder / sandbox noise
+.node_modules.lock
+.grok/
+artifacts/.tmp/
