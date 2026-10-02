@@ -7,142 +7,81 @@ Built for **Ministry of Home Affairs / I4C — Problem Statement ID-26183**
 
 **Live demo:** https://garuda-i4c-crypto-fraud-portal.vercel.app/trace
 
+**Clean source (no build artifacts):** https://github.com/sandeepkaringu2-bot/GARUDA-I4C-Crypto-Fraud-Portal  
+**Full app branch:** https://github.com/sandeepkaringu2-bot/CryptoFraudDetectionPortel/tree/clean/real-world-ready
+
 ---
 
 ## Why this exists (real operational gap)
 
-When a victim reports a crypto scam on the National Cyber Crime Reporting Portal (NCRP):
+When a victim reports a crypto scam on NCRP:
 
 1. The only lead is often a wallet string (BTC / ETH / TRC-20 USDT).
 2. Stolen funds typically reach an exchange or bridge within **minutes to a few hours**.
 3. After roughly **48 hours**, cash-out or cross-chain bridging makes recovery rare.
-4. Indian FIU-registered VASPs (WazirX, CoinDCX, ZebPay, etc.) can freeze funds quickly — **often within a 6–12 hour SLA** — but only if the officer sends a **correctly targeted, legally grounded notice** naming the exact deposit cluster.
+4. Indian FIU-registered VASPs can freeze funds in **6–12 hours** — but only with a correctly targeted, legally grounded notice.
 5. Manual multi-hop tracing + notice drafting routinely exceeds that window.
 
-**GARUDA closes that window.** The officer pastes the wallet (and optional NCRP ID). The system walks the graph, screens sanctions and repeat complaints, clusters co-spent addresses, identifies the highest-value Indian VASP sink, and drafts the freeze notice plus a bilingual officer brief.
+**GARUDA closes that window.**
 
 ---
 
-## End-to-end officer workflow (real use case)
+## Officer workflow (10 minutes)
 
-| Time | Action |
+| Step | Action |
 |------|--------|
-| T+0 | Victim files NCRP complaint (wallet + amount + typology). |
-| T+minutes | Cyber cell officer opens **Trace**, pastes wallet + complaint ID. |
-| Seconds | Engine walks outbound hops (max 6, cycle-guarded), checks OFAC / FIU-style sanctions, mixers, bridges, and other NCRP complaints on file. |
-| Seconds | Co-spend clustering groups wallets likely controlled by the same operator. |
-| Seconds | Highest-leverage **Indian VASP** endpoint is ranked; recoverable ₹ is estimated. |
-| ~1 min | Officer reviews graph → **Generate Notice**. |
-| ~1 min | SAHYOG-style freeze request (CrPC 91, PMLA 17, IT Act) is drafted, addressed to the VASP nodal officer, ready to sign and send. |
-| Parallel | Bilingual (EN / HI) plain-language brief for the case file. |
-| Continuous | Every action is written to a **SHA-256 hash-chained audit log** for court integrity. |
+| 1 | Open **Trace**, paste victim wallet + NCRP complaint ID |
+| 2 | Engine walks ≤6 hops (live BTC / ETH / TRON when available) |
+| 3 | Screens mixers, bridges, sanctions; clusters co-spent wallets |
+| 4 | Ranks Indian VASP endpoints + recoverable ₹ |
+| 5 | **Generate Notice** → SAHYOG draft (CrPC 91, PMLA 17, IT Act) |
+| 6 | Bilingual officer brief (EN / HI) + hash-chained audit log |
 
-This is the production use case the product is designed around — not a generic “blockchain explorer.”
+See **[OPERATIONS.md](./OPERATIONS.md)** for the full pilot checklist and escalation matrix.
 
 ---
 
-## What GARUDA does (pipeline)
+## Pipeline
 
-| Step | Capability | Location |
-|------|------------|----------|
-| 1 | Complaint / wallet intake | Cases, Ingest, Trace |
-| 2 | Chain detection (BTC / ETH / TRON) | `live.ts` |
-| 3 | Live hop fetch + multi-hop walk | Blockstream (BTC), Blockscout-style EVM, TronGrid (TRC-20) |
-| 4 | Sanctions / mixer / bridge flags | Registry + patterns |
-| 5 | Co-spend clustering | Engine |
-| 6 | VASP attribution + risk score (0–100) | Registry + `ml-risk.ts` |
-| 7 | Recoverable vs at-risk vs lost ₹ | Engine |
-| 8 | SAHYOG freeze notice draft | `notices.ts` |
-| 9 | Bilingual officer brief | `ai-brief.ts` + i18n |
-| 10 | Tamper-evident audit trail | Store + Evidence |
+| Step | Capability | Code |
+|------|------------|------|
+| Intake | Wallet + NCRP ID | Cases, Ingest, Trace |
+| Chain detect | BTC / ETH / TRON | `live.ts` |
+| Live hops | Blockstream, EVM explorers, TronGrid | `live.ts` |
+| Graph walk | Max 6 hops, cycle guard | `engine.ts` |
+| Screening | Sanctions, mixers, bridges | `registry.ts`, `patterns.ts` |
+| Clustering | Co-spend analysis | `engine.ts` |
+| Risk | Transparent 0–100 score | `ml-risk.ts` |
+| Notice | SAHYOG EN/HI draft | `notices.ts` |
+| Brief | Bilingual summary | `ai-brief.ts` |
+| Audit | SHA-256 hash chain | `store.ts` |
 
 ---
 
 ## Tech stack
 
-| Layer | Choice | Rationale |
-|-------|--------|-----------|
-| Full-stack | TanStack Start (React 19, file routes, server functions) | Fast SSR + type-safe server functions |
-| UI | Radix UI + Tailwind CSS v4 | Accessible, dense operational UI |
-| State | Zustand + localStorage | Demo / single-station use without forced login |
-| Live chain data | Public indexers (Blockstream, EVM explorers, TronGrid) | No paid API key required for pilot |
-| DB (optional path) | Neon / PGlite + Kysely | Ready when multi-officer persistence is required |
-| Hosting | Vercel | Serverless functions match the architecture |
-
-**Auth is intentionally off for the SIH / demo pilot** (local case store). A production pilot would enable officer accounts, station scoping, and server-side audit persistence.
+| Layer | Choice |
+|-------|--------|
+| Full-stack | TanStack Start (React 19, file routes, server functions) |
+| UI | Radix UI + Tailwind CSS v4 |
+| State | Zustand + localStorage (pilot; no forced login) |
+| Live chain | Blockstream (BTC), public EVM explorers, TronGrid (TRC-20) |
+| Hosting | Vercel |
 
 ---
 
-## Architecture
+## Real-world readiness
 
-```text
-Victim NCRP complaint
-        │
-        ▼
- Officer → Trace page (wallet + case ID)
-        │
-        ▼
- ┌────────────────── engine ──────────────────┐
- │ detect chain → live hops (or simulated)    │
- │ walk ≤ 6 hops · cycle guard                │
- │ screen: sanctions · mixers · bridges       │
- │ cluster co-spend · match VASP registry     │
- │ risk score · recoverable INR               │
- └──────────────────┬─────────────────────────┘
-                    │
-        ┌───────────┼───────────┐
-        ▼           ▼           ▼
-   Freeze notice  Officer brief  Audit log
-   (SAHYOG draft) (EN / HI)     (hash chain)
-```
-
----
-
-## Project layout
-
-```text
-src/
-  routes/          Home, Cases, Trace, Dossier, Evidence, VASPs, Intel, Playbook, Ingest
-  lib/garuda/
-    engine.ts      Trace, clustering, recovery, recommendations
-    live.ts        Live BTC / ETH / TRON hop fetch + walk
-    registry.ts    VASPs, mixers, bridges, demo ledger, sample complaints
-    notices.ts     SAHYOG-style freeze notice (EN)
-    ai-brief.ts    Bilingual case brief
-    ml-risk.ts     Feature-based risk score
-    patterns.ts    Typology / fan-out / contract heuristics
-    store.ts       Case + audit + SAHYOG outbox (local)
-    i18n.ts        English / Hindi strings
-  components/      Shell, hop graph, freeze panel, UI primitives
-migrations/        Schema for optional Neon / PGlite path
-scripts/           Dev env wrapper, migrate, smoke helpers
-```
-
----
-
-## Real-world readiness (honest status)
-
-| Capability | Status | Notes |
-|------------|--------|--------|
-| BTC live hops (Blockstream) | **Production-ready** | Public API, cached, rate-limit aware |
-| ETH / EVM live hops | **Operational** | Public explorers; token hops best-effort |
-| TRON / TRC-20 (USDT) | **Operational** | TronGrid; critical for India USDT scams |
-| Mixer / privacy-pool detection | **Operational** | Known Tornado / privacy contracts + heuristics |
-| Indian VASP directory + nodal contacts | **Operational** | FIU-registered names & compliance desks |
-| Deposit-address attribution | **Pilot** | Demo clusters + live matching; production needs LEA cluster feeds or exchange cooperation |
-| SAHYOG notice draft | **Production-ready as draft** | Officer must review, sign, and send via official channel |
-| Direct SAHYOG / NCRP API push | **Outbox only** | Queued locally; no live government API in this build |
-| Multi-officer auth & central DB | **Designed, not required for demo** | Enable Better Auth + Neon when piloting across stations |
-| Court-grade audit log | **Operational (local hash chain)** | Export chain of custody from Evidence |
-
-**What “100% real world” means here**
-
-- The **workflow** matches how cyber cells actually work under time pressure.
-- **Live public ledger data** is used whenever the address is on a supported chain.
-- **Legal notice language** cites the instruments officers already use (CrPC 91, PMLA 17, IT Act).
-- **Limits are explicit**: the app does not auto-send notices to exchanges, does not invent KYC, and does not claim private deposit-address intelligence it does not have.
-
-For a state / I4C pilot, the next integration steps are: (1) authorised VASP deposit-cluster feed or LEA portal, (2) officer SSO, (3) official SAHYOG outbox API.
+| Capability | Status |
+|------------|--------|
+| BTC live hops | Production-ready |
+| ETH / TRON live hops | Operational |
+| Mixer / bridge detection | Operational |
+| Indian VASP directory + nodal contacts | Operational |
+| Deposit-address attribution | Pilot (demo clusters + live match; LEA feeds for production) |
+| SAHYOG notice draft | Production-ready **as draft** (officer must sign & send) |
+| Direct SAHYOG / NCRP API | Local outbox only |
+| Multi-officer auth | Designed; off for SIH demo |
 
 ---
 
@@ -153,8 +92,7 @@ npm install
 npm run dev
 ```
 
-App: `http://localhost:8080`  
-Local PGlite mirrors the production schema when DB features are used — no manual Postgres setup required for the default demo path.
+App: `http://localhost:8080`
 
 ```bash
 npm run typecheck
@@ -163,24 +101,27 @@ npm run build
 
 ---
 
-## Demo path (when live hops are empty)
+## Changelog (clean release)
 
-If a pasted address has no recent outbound activity on public indexers, GARUDA falls back to a **realistic simulated ledger** built from common Indian scam patterns:
+### Added
+- **`.gitignore`** — excludes `.vercel/`, `node_modules/`, env files, local DB, build output
+- **`OPERATIONS.md`** — officer playbook, legal basis, escalation matrix, pilot checklist
+- **Hardened freeze notices** (`notices.ts`) — SLA line, 180-day preservation, 72h withdrawal block, recoverable flag, explicit “draft only / officer must sign” disclaimer (EN + HI)
+- **Production notes** on VASP registry — demo clusters vs LEA deposit feeds
+- **Package identity** — renamed to `garuda-i4c-crypto-fraud-portal`
 
-- Fake investment / task apps → burner → layering → Indian VASP
-- Sextortion / ransomware USDT flows
-- Mixer and no-KYC bridge dead-ends
+### Changed
+- **README** rewritten for operational / I4C pilot audience (workflow, honest limits, multi-chain status)
+- **AGENTS.project.md** — real-world scope and pilot next steps
 
-This keeps training and evaluation possible offline or under rate limits, while live mode is preferred for real complaints.
+### Removed / prevented
+- Future commits of **Vercel build output** (via `.gitignore`)
+- New clean public repo without historical `.vercel` blobs: [GARUDA-I4C-Crypto-Fraud-Portal](https://github.com/sandeepkaringu2-bot/GARUDA-I4C-Crypto-Fraud-Portal)
 
----
-
-## Security & evidence notes
-
-- No real victim PII is required to run a trace — only the wallet and optional complaint ID.
-- Do not paste full NCRP PDFs or Aadhaar into the client store for a production deployment.
-- Audit entries are hash-chained; export them with the case dossier for court.
-- Freeze notices are **drafts**. Only an authorised officer may transmit them through official channels.
+### Limits (by design)
+- Notices are **drafts** — not auto-sent to exchanges
+- No private exchange deposit databases without authorised feeds
+- Auth remains off for SIH demo (local case store)
 
 ---
 
